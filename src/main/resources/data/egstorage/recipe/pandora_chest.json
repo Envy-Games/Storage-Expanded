@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "OEO",
+    "ECE",
+    "OEO"
+  ],
+  "key": {
+    "C": {
+      "item": "minecraft:chest"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "O": {
+      "item": "minecraft:obsidian"
+    }
+  },
+  "result": {
+    "count": 1,
+    "id": "egstorage:pandora_chest"
+  }
+}

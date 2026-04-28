@@ -1,0 +1,6 @@
+{
+  "block.egstorage.pandora_chest": "Pandora's Chest",
+  "container.egstorage.pandora_chest": "Pandora's Chest",
+  "creativetab.egstorage.mystical_storage": "Storage Expanded",
+  "jei.egstorage.pandora_chest.info": "A personal, server-saved storage access point. Contents are stored per player, so breaking the block does not delete stored items. The current recipe and vanilla-textured model are placeholders."
+}
