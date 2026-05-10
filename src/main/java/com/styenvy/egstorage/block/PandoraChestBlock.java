@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.NotNull;
 
 public class PandoraChestBlock extends Block implements EntityBlock {
@@ -30,14 +31,18 @@ public class PandoraChestBlock extends Block implements EntityBlock {
     }
 
     @Override
+    protected @Nullable MenuProvider getMenuProvider(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos) {
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        return blockEntity instanceof PandoraChestBlockEntity chestEntity ? chestEntity : null;
+    }
+
+    @Override
     public @NotNull InteractionResult useWithoutItem(@NotNull BlockState state, Level level, @NotNull BlockPos pos, @NotNull Player player, @NotNull BlockHitResult hit) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof PandoraChestBlockEntity chestEntity) {
-                // Play mystical opening sound
+            MenuProvider menuProvider = state.getMenuProvider(level, pos);
+            if (menuProvider != null && serverPlayer.openMenu(menuProvider, pos).isPresent()) {
                 level.playSound(null, pos, SoundEvents.ENDER_CHEST_OPEN, SoundSource.BLOCKS, 0.5F,
                         level.random.nextFloat() * 0.1F + 0.9F);
-                serverPlayer.openMenu((MenuProvider) chestEntity, pos);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);

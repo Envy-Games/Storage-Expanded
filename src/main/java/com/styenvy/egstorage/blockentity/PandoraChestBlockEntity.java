@@ -25,6 +25,10 @@ import java.util.List;
 /**
  * Pandora's Chest is only an access point. The actual storage is saved once per
  * player in world saved data, so breaking a block cannot delete the contents.
+ *
+ * This block entity intentionally does not expose an item handler capability:
+ * NeoForge block capabilities have no player context, while this storage is
+ * player-scoped.
  */
 public class PandoraChestBlockEntity extends BlockEntity implements MenuProvider {
     private final List<LegacyStoredItem> legacyBlockItems = new ArrayList<>();

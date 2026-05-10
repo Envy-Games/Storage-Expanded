@@ -1,6 +1,7 @@
 package com.styenvy.egstorage.network;
 
 import com.styenvy.egstorage.EGStorageMod;
+import com.styenvy.egstorage.PandoraChestConstants;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -14,7 +15,7 @@ public record PandoraChestViewPayload(int containerId, String searchText, int sc
     public static final StreamCodec<RegistryFriendlyByteBuf, PandoraChestViewPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_INT,
             PandoraChestViewPayload::containerId,
-            ByteBufCodecs.STRING_UTF8,
+            ByteBufCodecs.stringUtf8(PandoraChestConstants.MAX_SEARCH_LENGTH),
             PandoraChestViewPayload::searchText,
             ByteBufCodecs.VAR_INT,
             PandoraChestViewPayload::scrollOffset,

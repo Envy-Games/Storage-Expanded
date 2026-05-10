@@ -1,5 +1,6 @@
 package com.styenvy.egstorage.client.screen;
 
+import com.styenvy.egstorage.PandoraChestConstants;
 import com.styenvy.egstorage.container.PandoraChestMenu;
 import com.styenvy.egstorage.network.PandoraChestViewPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -86,7 +87,7 @@ public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu
         int searchX = this.leftPos + SEARCH_X;
         int searchY = this.topPos + SEARCH_Y;
         this.searchBox = new EditBox(this.font, searchX, searchY, SEARCH_WIDTH, SEARCH_HEIGHT, Component.literal("Search"));
-        this.searchBox.setMaxLength(50);
+        this.searchBox.setMaxLength(PandoraChestConstants.MAX_SEARCH_LENGTH);
         this.searchBox.setBordered(true);
         this.searchBox.setTextColor(0xFFFFFF);
         this.searchBox.setHint(Component.literal("Search...").withStyle(s -> s.withColor(0x888888)));

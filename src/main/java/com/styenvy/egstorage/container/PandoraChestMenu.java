@@ -1,12 +1,12 @@
 package com.styenvy.egstorage.container;
 
+import com.styenvy.egstorage.PandoraChestConstants;
 import com.styenvy.egstorage.blockentity.PandoraChestBlockEntity;
 import com.styenvy.egstorage.init.ModBlocks;
 import com.styenvy.egstorage.init.ModMenuTypes;
 import com.styenvy.egstorage.storage.PandoraChestSavedData;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -16,8 +16,8 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,16 +29,16 @@ public class PandoraChestMenu extends AbstractContainerMenu {
     public static final int ROWS_VISIBLE = 6;
     public static final int COLS = 9;
     public static final int CHEST_SLOTS = ROWS_VISIBLE * COLS;
-    private static final int MAX_SEARCH_LENGTH = 50;
     private static final int SLOT_SIZE = 18;
     private static final int LEFT_PADDING = 8;
     private static final int CHEST_SLOT_Y = 18;
     private static final int PLAYER_INVENTORY_SLOT_Y = 152;
     private static final int HOTBAR_SLOT_Y = 210;
 
-    private final PandoraChestBlockEntity blockEntity;
+    private final @Nullable PandoraChestBlockEntity blockEntity;
     private final ContainerLevelAccess access;
     private final PandoraChestSavedData.PlayerStorage storage;
+    private final boolean clientSideMenu;
 
     private final List<ItemStack> displayedItems = new ArrayList<>();
     private final int[] displayedIndices = new int[CHEST_SLOTS];
@@ -57,18 +57,28 @@ public class PandoraChestMenu extends AbstractContainerMenu {
     /**
      * Client-side constructor (called via network)
      */
-    public PandoraChestMenu(int id, Inventory playerInventory, FriendlyByteBuf data) {
-        this(id, playerInventory, readBlockEntity(playerInventory, data), PandoraChestSavedData.PlayerStorage.clientOnly());
+    public PandoraChestMenu(int id, Inventory playerInventory, RegistryFriendlyByteBuf data) {
+        this(id, playerInventory, null, PandoraChestSavedData.PlayerStorage.clientOnly(), ContainerLevelAccess.NULL, true);
+        if (data != null) {
+            // Consume the position written by openMenu; the client menu keeps inert access per NeoForge's menu guidance.
+            data.readBlockPos();
+        }
     }
 
     /**
      * Server-side constructor
      */
     public PandoraChestMenu(int id, Inventory playerInventory, PandoraChestBlockEntity blockEntity, PandoraChestSavedData.PlayerStorage storage) {
+        this(id, playerInventory, blockEntity, storage, ContainerLevelAccess.create(blockEntity.getLevel(), blockEntity.getBlockPos()), false);
+    }
+
+    private PandoraChestMenu(int id, Inventory playerInventory, @Nullable PandoraChestBlockEntity blockEntity, PandoraChestSavedData.PlayerStorage storage,
+                             ContainerLevelAccess access, boolean clientSideMenu) {
         super(ModMenuTypes.PANDORA_CHEST_MENU.get(), id);
         this.blockEntity = blockEntity;
-        this.access = ContainerLevelAccess.create(blockEntity.getLevel(), blockEntity.getBlockPos());
+        this.access = access;
         this.storage = storage;
+        this.clientSideMenu = clientSideMenu;
 
         // Slot layout matching PandoraChestScreen.
         // Slot backgrounds are drawn one pixel up/left from these coordinates.
@@ -100,9 +110,9 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         }
 
         addSyncedLong(this::getServerItemCount, value -> this.syncedItemCount = value, () -> this.syncedItemCount);
-        addSyncedInt(storage::getStackCount, value -> this.syncedStackCount = value, () -> this.syncedStackCount);
-        addSyncedInt(this::calculateMaxScroll, value -> this.syncedMaxScroll = value, () -> this.syncedMaxScroll);
-        addSyncedInt(() -> scrollOffset, value -> this.scrollOffset = value, () -> this.scrollOffset);
+        addSyncedInt(storage::getStackCount, value -> this.syncedStackCount = value);
+        addSyncedInt(this::calculateMaxScroll, value -> this.syncedMaxScroll = value);
+        addSyncedInt(() -> scrollOffset, value -> this.scrollOffset = value);
         for (int slot = 0; slot < CHEST_SLOTS; slot++) {
             final int displayedSlot = slot;
             addSyncedLong(
@@ -192,7 +202,7 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         int endIndex = Math.min(startIndex + CHEST_SLOTS, filteredIndices.size());
 
         for (int visual = 0; visual < endIndex - startIndex; visual++) {
-            int beIndex = filteredIndices.get(startIndex + visual);
+            int beIndex = filteredIndices.getInt(startIndex + visual);
             ItemStack target = storedItems.get(beIndex).copyForDisplay();
 
             displayedItems.add(target);
@@ -312,7 +322,7 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         return !(slot instanceof VirtualSlot);
     }
 
-    public PandoraChestBlockEntity getBlockEntity() {
+    public @Nullable PandoraChestBlockEntity getBlockEntity() {
         return blockEntity;
     }
 
@@ -336,17 +346,7 @@ public class PandoraChestMenu extends AbstractContainerMenu {
     }
 
     private boolean isClientSideMenu() {
-        return blockEntity.getLevel() != null && blockEntity.getLevel().isClientSide;
-    }
-
-    private static PandoraChestBlockEntity readBlockEntity(Inventory playerInventory, FriendlyByteBuf data) {
-        BlockPos pos = data.readBlockPos();
-        BlockEntity blockEntity = playerInventory.player.level().getBlockEntity(pos);
-        if (blockEntity instanceof PandoraChestBlockEntity pandoraChest) {
-            return pandoraChest;
-        }
-
-        throw new IllegalStateException("Pandora's Chest menu opened for missing block entity at " + pos);
+        return clientSideMenu;
     }
 
     private String normalizeSearch(String text) {
@@ -355,7 +355,9 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         }
 
         String normalized = text.toLowerCase(Locale.ROOT).trim();
-        return normalized.length() > MAX_SEARCH_LENGTH ? normalized.substring(0, MAX_SEARCH_LENGTH) : normalized;
+        return normalized.length() > PandoraChestConstants.MAX_SEARCH_LENGTH
+                ? normalized.substring(0, PandoraChestConstants.MAX_SEARCH_LENGTH)
+                : normalized;
     }
 
     private interface LongSetter {
@@ -374,37 +376,41 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         int get();
     }
 
-    private void addSyncedInt(IntGetter getter, IntSetter setter, IntGetter currentSyncedValue) {
-        for (int word = 0; word < 2; word++) {
-            final int shift = word * 16;
-            this.addDataSlot(new DataSlot() {
-                @Override
-                public int get() {
-                    return (getter.get() >>> shift) & 0xFFFF;
-                }
+    private void addSyncedInt(IntGetter getter, IntSetter setter) {
+        this.addDataSlot(new DataSlot() {
+            @Override
+            public int get() {
+                return getter.get();
+            }
 
-                @Override
-                public void set(int value) {
-                    int current = isClientSideMenu() ? currentSyncedValue.get() : getter.get();
-                    setter.set((current & ~(0xFFFF << shift)) | ((value & 0xFFFF) << shift));
-                }
-            });
-        }
+            @Override
+            public void set(int value) {
+                setter.set(value);
+            }
+        });
     }
 
     private void addSyncedLong(LongGetter getter, LongSetter setter, LongGetter currentSyncedValue) {
-        for (int word = 0; word < 4; word++) {
-            final int shift = word * 16;
+        for (int word = 0; word < 2; word++) {
+            final int part = word;
             this.addDataSlot(new DataSlot() {
                 @Override
                 public int get() {
-                    return (int) ((getter.get() >>> shift) & 0xFFFFL);
+                    long value = getter.get();
+                    return part == 0 ? (int) value : (int) (value >>> 32);
                 }
 
                 @Override
                 public void set(int value) {
                     long current = isClientSideMenu() ? currentSyncedValue.get() : getter.get();
-                    setter.set((current & ~(0xFFFFL << shift)) | ((long) (value & 0xFFFF) << shift));
+                    long low = current & 0xFFFFFFFFL;
+                    long high = current >>> 32;
+                    if (part == 0) {
+                        low = value & 0xFFFFFFFFL;
+                    } else {
+                        high = value & 0xFFFFFFFFL;
+                    }
+                    setter.set((high << 32) | low);
                 }
             });
         }
@@ -617,7 +623,7 @@ public class PandoraChestMenu extends AbstractContainerMenu {
         public @NotNull ItemStack remove(int amount) {
             // Client-side prediction: just take from the visual stack.
             // Server-side: actually remove from the player's saved storage.
-            if (menu.blockEntity.getLevel() != null && menu.blockEntity.getLevel().isClientSide) {
+            if (menu.isClientSideMenu()) {
                 if (displayStack.isEmpty() || amount <= 0) {
                     return ItemStack.EMPTY;
                 }
