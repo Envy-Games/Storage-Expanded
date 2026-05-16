@@ -6,6 +6,7 @@ import com.styenvy.egstorage.init.ModBlocks;
 import com.styenvy.egstorage.init.ModMenuTypes;
 import com.styenvy.egstorage.storage.PandoraChestSavedData;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
@@ -184,7 +185,7 @@ public class PandoraChestMenu extends AbstractContainerMenu {
 
     private boolean matchesSearch(ItemStack stack) {
         String displayName = stack.getDisplayName().getString().toLowerCase(Locale.ROOT);
-        String itemId = stack.getItem().toString().toLowerCase(Locale.ROOT);
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().toLowerCase(Locale.ROOT);
         return displayName.contains(searchText) || itemId.contains(searchText);
     }
 
