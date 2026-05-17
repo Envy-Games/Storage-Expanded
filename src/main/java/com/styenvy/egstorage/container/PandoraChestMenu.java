@@ -310,6 +310,14 @@ public class PandoraChestMenu extends AbstractContainerMenu {
     }
 
     @Override
+    public void removed(@NotNull Player player) {
+        super.removed(player);
+        if (!player.level().isClientSide && blockEntity != null) {
+            blockEntity.onMenuClosed(player);
+        }
+    }
+
+    @Override
     public void clicked(int slotId, int button, @NotNull ClickType clickType, @NotNull Player player) {
         if (slotId >= 0 && slotId < CHEST_SLOTS && handleVirtualSlotClick(slotId, button, clickType, player)) {
             return;

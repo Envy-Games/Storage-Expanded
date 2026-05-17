@@ -9,18 +9,33 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import software.bernie.geckolib.animatable.GeoBlockEntity;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.PlayState;
+import software.bernie.geckolib.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Pandora's Chest is only an access point. The actual storage is saved once per
@@ -30,8 +45,18 @@ import java.util.List;
  * NeoForge block capabilities have no player context, while this storage is
  * player-scoped.
  */
-public class PandoraChestBlockEntity extends BlockEntity implements MenuProvider {
+public class PandoraChestBlockEntity extends BlockEntity implements MenuProvider, GeoBlockEntity {
+    private static final String CONTROLLER = "pandora_controller";
+    private static final RawAnimation CLOSED_IDLE = RawAnimation.begin().thenLoop("animation.pandoras_chest.closed_idle");
+    private static final RawAnimation OPEN_IDLE = RawAnimation.begin().thenLoop("animation.pandoras_chest.open_idle");
+    private static final RawAnimation OPEN = RawAnimation.begin().thenPlay("animation.pandoras_chest.open");
+    private static final RawAnimation CLOSE = RawAnimation.begin().thenPlay("animation.pandoras_chest.close");
+    private static final RawAnimation LOOT_BURST = RawAnimation.begin().thenPlay("animation.pandoras_chest.loot_burst");
+
+    private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     private final List<LegacyStoredItem> legacyBlockItems = new ArrayList<>();
+    private final Set<UUID> openViewers = new HashSet<>();
+    private boolean open;
 
     public PandoraChestBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PANDORA_CHEST_BE.get(), pos, state);
@@ -47,10 +72,75 @@ public class PandoraChestBlockEntity extends BlockEntity implements MenuProvider
         if (player instanceof ServerPlayer serverPlayer) {
             PandoraChestSavedData.PlayerStorage storage = PandoraChestSavedData.getStorage(serverPlayer.getServer(), serverPlayer.getUUID());
             migrateLegacyBlockItems(storage);
+            onMenuOpened(serverPlayer);
             return new PandoraChestMenu(id, playerInventory, this, storage);
         }
 
         return new PandoraChestMenu(id, playerInventory, this, PandoraChestSavedData.PlayerStorage.clientOnly());
+    }
+
+    public boolean isOpen() {
+        return open;
+    }
+
+    public void onMenuOpened(Player player) {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+
+        if (openViewers.add(player.getUUID()) && openViewers.size() == 1) {
+            setOpen(true);
+        }
+    }
+
+    public void onMenuClosed(Player player) {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+
+        openViewers.remove(player.getUUID());
+        if (openViewers.isEmpty()) {
+            setOpen(false);
+        }
+    }
+
+    public void triggerLootBurst() {
+        if (level != null && !level.isClientSide) {
+            triggerAnim(CONTROLLER, "loot_burst");
+            syncAnimationState();
+        }
+    }
+
+    private void setOpen(boolean open) {
+        if (this.open == open) {
+            return;
+        }
+
+        this.open = open;
+        if (level != null && !level.isClientSide) {
+            triggerAnim(CONTROLLER, open ? "open" : "close");
+            syncAnimationState();
+        }
+    }
+
+    private void syncAnimationState() {
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, CONTROLLER, 0, state -> {
+            state.setAndContinue(open ? OPEN_IDLE : CLOSED_IDLE);
+            return PlayState.CONTINUE;
+        })
+                .triggerableAnim("open", OPEN)
+                .triggerableAnim("close", CLOSE)
+                .triggerableAnim("loot_burst", LOOT_BURST));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return geoCache;
     }
 
     private void migrateLegacyBlockItems(PandoraChestSavedData.PlayerStorage storage) {
@@ -97,6 +187,25 @@ public class PandoraChestBlockEntity extends BlockEntity implements MenuProvider
                 legacyBlockItems.add(new LegacyStoredItem(stack, count));
             }
         }
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = super.getUpdateTag(registries);
+        tag.putBoolean("Open", open);
+        return tag;
+    }
+
+    @Override
+    public void handleUpdateTag(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider registries) {
+        super.handleUpdateTag(tag, registries);
+        open = tag.getBoolean("Open");
+    }
+
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     private record LegacyStoredItem(ItemStack stack, long count) {

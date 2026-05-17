@@ -7,7 +7,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -22,25 +21,29 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Pandora Chest Screen - renders using only vanilla GUI sprites and graphics primitives.
- * No custom texture files required!
+ * Pandora Chest Screen - rendered with GUI primitives so the eldritch style
+ * does not require external texture assets.
  */
 public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu> {
 
-    // Vanilla sprite location (1.20.2+ sprite system)
-    private static final ResourceLocation SCROLLER_SPRITE = ResourceLocation.withDefaultNamespace("widget/scroller");
-
-    // Container colors (matching vanilla container style)
-    private static final int BG_COLOR = 0xFFC6C6C6;           // Main background
-    private static final int BORDER_LIGHT = 0xFFFFFFFF;        // Top/left border highlight
-    private static final int BORDER_DARK = 0xFF555555;         // Bottom/right border shadow
-    private static final int BORDER_DARKER = 0xFF373737;       // Outer shadow
-    private static final int SLOT_BG = 0xFF8B8B8B;             // Slot background
-    private static final int SLOT_BORDER_DARK = 0xFF373737;    // Slot inner shadow
-    private static final int SLOT_BORDER_LIGHT = 0xFFFFFFFF;   // Slot inner highlight
-    private static final int TITLE_COLOR = 0x9932CC;           // Mystical purple for title
-    private static final int TEXT_COLOR = 0x404040;            // Standard label color
-    private static final int SCROLLBAR_BG = 0xFF000000;        // Scrollbar track
+    private static final int SHADOW = 0x99000000;
+    private static final int OUTER_EDGE = 0xFF05030A;
+    private static final int PANEL_EDGE = 0xFF141020;
+    private static final int PANEL_BG = 0xFF1A1322;
+    private static final int PANEL_INNER = 0xFF221A2D;
+    private static final int SECTION_BG = 0xFF100D17;
+    private static final int SECTION_EDGE = 0xFF39294C;
+    private static final int SLOT_BG = 0xFF171820;
+    private static final int SLOT_INNER = 0xFF202331;
+    private static final int SLOT_HIGHLIGHT = 0xFF5E497A;
+    private static final int SLOT_SHADOW = 0xFF090810;
+    private static final int TEXT_PRIMARY = 0xFFEDE7FF;
+    private static final int TEXT_MUTED = 0xFF9E94AD;
+    private static final int VOID_PURPLE = 0xFF8D59D6;
+    private static final int ELDRITCH_TEAL = 0xFF40D9C8;
+    private static final int RITUAL_GOLD = 0xFFCB8E4A;
+    private static final int SEARCH_BG = 0xFF0B0A10;
+    private static final int SCROLLBAR_BG = 0xFF08070C;
 
     // Layout constants
     private static final int CHEST_ROWS = 6;
@@ -88,9 +91,9 @@ public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu
         int searchY = this.topPos + SEARCH_Y;
         this.searchBox = new EditBox(this.font, searchX, searchY, SEARCH_WIDTH, SEARCH_HEIGHT, Component.literal("Search"));
         this.searchBox.setMaxLength(PandoraChestConstants.MAX_SEARCH_LENGTH);
-        this.searchBox.setBordered(true);
-        this.searchBox.setTextColor(0xFFFFFF);
-        this.searchBox.setHint(Component.literal("Search...").withStyle(s -> s.withColor(0x888888)));
+        this.searchBox.setBordered(false);
+        this.searchBox.setTextColor(TEXT_PRIMARY);
+        this.searchBox.setHint(Component.literal("Seek...").withStyle(s -> s.withColor(TEXT_MUTED)));
         this.searchBox.setResponder(text -> {
             this.scrollOffset = 0;
             sendViewState();
@@ -111,45 +114,36 @@ public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu
     protected void renderBg(@NotNull GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         int x = this.leftPos;
         int y = this.topPos;
+        float pulse = getPulse(partialTick);
 
-        // === Main container panel ===
-        renderPanel(graphics, x, y, imageWidth, imageHeight);
+        renderPanel(graphics, x, y, imageWidth, imageHeight, pulse);
 
-        // === Chest slots area (6 rows x 9 cols) ===
         int slotsX = x + CHEST_SLOT_X - 1;
         int slotsY = y + CHEST_SLOT_Y - 1;
+        renderSectionFrame(graphics, slotsX - 5, slotsY - 5, CHEST_COLS * SLOT_SIZE + 10, CHEST_ROWS * SLOT_SIZE + 10, pulse);
         renderSlotGrid(graphics, slotsX, slotsY, CHEST_COLS, CHEST_ROWS);
 
-        // === Scrollbar ===
-        renderScrollbar(graphics, x + SCROLLBAR_X, y + SCROLLBAR_Y);
+        renderScrollbar(graphics, x + SCROLLBAR_X, y + SCROLLBAR_Y, pulse);
 
-        // === Player inventory slots (3 rows x 9 cols) ===
         int invY = y + PLAYER_INVENTORY_SLOT_Y - 1;
-        renderSlotGrid(graphics, slotsX, invY, 9, 3);
-
-        // === Hotbar slots (1 row x 9 cols) ===
         int hotbarY = y + HOTBAR_SLOT_Y - 1;
+        renderSectionFrame(graphics, slotsX - 5, invY - 5, 9 * SLOT_SIZE + 10, hotbarY - invY + SLOT_SIZE + 10, pulse * 0.65F);
+        renderSlotGrid(graphics, slotsX, invY, 9, 3);
         renderSlotGrid(graphics, slotsX, hotbarY, 9, 1);
 
-        // === Separator line between chest and inventory ===
-        graphics.fill(x + CHEST_SLOT_X - 1, y + SEPARATOR_Y, x + CHEST_SLOT_X - 1 + CHEST_COLS * SLOT_SIZE, y + SEPARATOR_Y + 1, BORDER_DARK);
-        graphics.fill(x + CHEST_SLOT_X - 1, y + SEPARATOR_Y + 1, x + CHEST_SLOT_X - 1 + CHEST_COLS * SLOT_SIZE, y + SEPARATOR_Y + 2, BORDER_LIGHT);
+        renderRitualDivider(graphics, x + CHEST_SLOT_X - 1, y + SEPARATOR_Y, CHEST_COLS * SLOT_SIZE, pulse);
 
-        // === Item count display ===
-        long totalItems = menu.getSyncedItemCount();
-        int uniqueStacks = menu.getSyncedStackCount();
-        if (totalItems > 0) {
-            String countText = formatItemCount(totalItems) + " items (" + uniqueStacks + " stacks)";
-            graphics.drawString(this.font, countText, x + LEFT_PADDING, y + STATUS_Y, TEXT_COLOR, false);
-        }
+        String countText = formatItemCount(menu.getSyncedItemCount()) + " Items Stored";
+        graphics.drawString(this.font, countText, x + LEFT_PADDING, y + STATUS_Y, TEXT_MUTED, false);
+        renderSearchFrame(graphics, x + SEARCH_X - 2, y + SEARCH_Y - 2, SEARCH_WIDTH + 4, SEARCH_HEIGHT + 2, pulse);
     }
 
     @Override
     protected void renderLabels(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
-        // Render title with mystical purple color
-        graphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, TITLE_COLOR, false);
-        // Render "Inventory" label
-        graphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, TEXT_COLOR, false);
+        graphics.drawString(this.font, this.title, this.titleLabelX + 1, this.titleLabelY + 1, OUTER_EDGE, false);
+        graphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, TEXT_PRIMARY, false);
+
+        graphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, TEXT_MUTED, false);
     }
 
     @Override
@@ -182,24 +176,17 @@ public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu
         super.renderSlotContents(graphics, itemStack, slot, countString);
     }
 
-    /**
-     * Renders a panel with 3D beveled edges (vanilla container style)
-     */
-    private void renderPanel(GuiGraphics graphics, int x, int y, int width, int height) {
-        // Outer shadow
-        graphics.fill(x + 1, y + height, x + width + 1, y + height + 1, BORDER_DARKER);
-        graphics.fill(x + width, y + 1, x + width + 1, y + height + 1, BORDER_DARKER);
+    private void renderPanel(GuiGraphics graphics, int x, int y, int width, int height, float pulse) {
+        graphics.fill(x + 4, y + 5, x + width + 5, y + height + 6, SHADOW);
+        graphics.fill(x, y, x + width, y + height, OUTER_EDGE);
+        graphics.fill(x + 2, y + 2, x + width - 2, y + height - 2, PANEL_EDGE);
+        graphics.fill(x + 5, y + 5, x + width - 5, y + height - 5, PANEL_BG);
+        graphics.fill(x + 8, y + 8, x + width - 8, y + 27, PANEL_INNER);
 
-        // Main background
-        graphics.fill(x, y, x + width, y + height, BG_COLOR);
+        graphics.fill(x + 8, y + 27, x + width - 8, y + 29, RITUAL_GOLD);
+        graphics.fill(x + 12, y + height - 10, x + width - 12, y + height - 8, withAlpha(VOID_PURPLE, 130 + (int) (pulse * 70)));
 
-        // Top and left highlight
-        graphics.fill(x, y, x + width, y + 1, BORDER_LIGHT);
-        graphics.fill(x, y, x + 1, y + height, BORDER_LIGHT);
-
-        // Bottom and right shadow
-        graphics.fill(x, y + height - 1, x + width, y + height, BORDER_DARK);
-        graphics.fill(x + width - 1, y, x + width, y + height, BORDER_DARK);
+        renderRunes(graphics, x, y, width, height, pulse);
     }
 
     /**
@@ -215,48 +202,76 @@ public class PandoraChestScreen extends AbstractContainerScreen<PandoraChestMenu
         }
     }
 
-    /**
-     * Renders a single slot with 3D inset borders
-     */
     private void renderSlot(GuiGraphics graphics, int x, int y) {
-        // Slot background
         graphics.fill(x, y, x + SLOT_SIZE, y + SLOT_SIZE, SLOT_BG);
-
-        // Inner shadow (top and left)
-        graphics.fill(x, y, x + SLOT_SIZE - 1, y + 1, SLOT_BORDER_DARK);
-        graphics.fill(x, y, x + 1, y + SLOT_SIZE - 1, SLOT_BORDER_DARK);
-
-        // Inner highlight (bottom and right)
-        graphics.fill(x + 1, y + SLOT_SIZE - 1, x + SLOT_SIZE, y + SLOT_SIZE, SLOT_BORDER_LIGHT);
-        graphics.fill(x + SLOT_SIZE - 1, y + 1, x + SLOT_SIZE, y + SLOT_SIZE, SLOT_BORDER_LIGHT);
+        graphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, SLOT_SHADOW);
+        graphics.fill(x + 2, y + 2, x + SLOT_SIZE - 2, y + SLOT_SIZE - 2, SLOT_INNER);
+        graphics.fill(x + 1, y + 1, x + SLOT_SIZE - 2, y + 2, SLOT_HIGHLIGHT);
+        graphics.fill(x + 1, y + 1, x + 2, y + SLOT_SIZE - 2, SLOT_HIGHLIGHT);
+        graphics.fill(x + 2, y + SLOT_SIZE - 2, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, OUTER_EDGE);
+        graphics.fill(x + SLOT_SIZE - 2, y + 2, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, OUTER_EDGE);
     }
 
-    /**
-     * Renders the scrollbar using vanilla sprites
-     */
-    private void renderScrollbar(GuiGraphics graphics, int x, int y) {
-        // Scrollbar track background
+    private void renderScrollbar(GuiGraphics graphics, int x, int y, float pulse) {
         graphics.fill(x, y, x + SCROLLBAR_WIDTH, y + SCROLLBAR_HEIGHT, SCROLLBAR_BG);
-        graphics.fill(x + 1, y + 1, x + SCROLLBAR_WIDTH - 1, y + SCROLLBAR_HEIGHT - 1, SLOT_BG);
+        graphics.fill(x + 2, y + 2, x + SCROLLBAR_WIDTH - 2, y + SCROLLBAR_HEIGHT - 2, OUTER_EDGE);
+        graphics.fill(x + 4, y + 4, x + SCROLLBAR_WIDTH - 4, y + SCROLLBAR_HEIGHT - 4, PANEL_INNER);
 
-        // Scrollbar thumb position
         int thumbY = y + 1 + (int) ((SCROLLBAR_HEIGHT - SCROLLER_HEIGHT - 2) * scrollOffset);
-
+        int thumbColor = canScroll() ? withAlpha(VOID_PURPLE, 185 + (int) (pulse * 55)) : 0xFF3A3443;
         if (canScroll()) {
-            // Active scrollbar - use vanilla sprite
-            graphics.blitSprite(SCROLLER_SPRITE, x + 1, thumbY, SCROLLBAR_WIDTH - 2, SCROLLER_HEIGHT);
+            graphics.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + SCROLLER_HEIGHT, OUTER_EDGE);
+            graphics.fill(x + 2, thumbY + 1, x + SCROLLBAR_WIDTH - 2, thumbY + SCROLLER_HEIGHT - 1, thumbColor);
+            graphics.fill(x + 3, thumbY + 2, x + SCROLLBAR_WIDTH - 3, thumbY + 3, ELDRITCH_TEAL);
+            graphics.fill(x + 3, thumbY + SCROLLER_HEIGHT - 3, x + SCROLLBAR_WIDTH - 3, thumbY + SCROLLER_HEIGHT - 2, RITUAL_GOLD);
         } else {
-            // Disabled state - draw a grayed out thumb manually
-            int thumbX = x + 1;
-            int thumbW = SCROLLBAR_WIDTH - 2;
-            // Draw disabled thumb with muted colors
-            graphics.fill(thumbX, thumbY, thumbX + thumbW, thumbY + SCROLLER_HEIGHT, 0xFF606060);
-            // Simple 3D effect
-            graphics.fill(thumbX, thumbY, thumbX + thumbW - 1, thumbY + 1, 0xFF808080);
-            graphics.fill(thumbX, thumbY, thumbX + 1, thumbY + SCROLLER_HEIGHT - 1, 0xFF808080);
-            graphics.fill(thumbX + thumbW - 1, thumbY, thumbX + thumbW, thumbY + SCROLLER_HEIGHT, 0xFF404040);
-            graphics.fill(thumbX, thumbY + SCROLLER_HEIGHT - 1, thumbX + thumbW, thumbY + SCROLLER_HEIGHT, 0xFF404040);
+            graphics.fill(x + 2, thumbY + 1, x + SCROLLBAR_WIDTH - 2, thumbY + SCROLLER_HEIGHT - 1, thumbColor);
         }
+    }
+
+    private void renderSectionFrame(GuiGraphics graphics, int x, int y, int width, int height, float pulse) {
+        graphics.fill(x, y, x + width, y + height, OUTER_EDGE);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, SECTION_EDGE);
+        graphics.fill(x + 3, y + 3, x + width - 3, y + height - 3, SECTION_BG);
+
+        int accent = withAlpha(VOID_PURPLE, 90 + (int) (pulse * 65));
+        graphics.fill(x + 5, y + 4, x + width - 5, y + 5, accent);
+        graphics.fill(x + 5, y + height - 5, x + width - 5, y + height - 4, withAlpha(ELDRITCH_TEAL, 70));
+    }
+
+    private void renderSearchFrame(GuiGraphics graphics, int x, int y, int width, int height, float pulse) {
+        graphics.fill(x, y, x + width, y + height, OUTER_EDGE);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, SECTION_EDGE);
+        graphics.fill(x + 3, y + 3, x + width - 3, y + height - 3, SEARCH_BG);
+        graphics.fill(x + 4, y + height - 3, x + width - 4, y + height - 2, withAlpha(ELDRITCH_TEAL, 120 + (int) (pulse * 70)));
+    }
+
+    private void renderRitualDivider(GuiGraphics graphics, int x, int y, int width, float pulse) {
+        graphics.fill(x, y, x + width, y + 1, OUTER_EDGE);
+        graphics.fill(x, y + 1, x + width, y + 2, withAlpha(RITUAL_GOLD, 135 + (int) (pulse * 70)));
+        for (int i = 0; i < width; i += 18) {
+            graphics.fill(x + i + 7, y - 1, x + i + 11, y + 3, OUTER_EDGE);
+            graphics.fill(x + i + 8, y, x + i + 10, y + 2, VOID_PURPLE);
+        }
+    }
+
+    private void renderRunes(GuiGraphics graphics, int x, int y, int width, int height, float pulse) {
+        int color = withAlpha(TEXT_MUTED, 70 + (int) (pulse * 45));
+        graphics.drawString(this.font, "I", x + 16, y + height - 21, color, false);
+        graphics.drawString(this.font, "V", x + 29, y + height - 21, color, false);
+        graphics.drawString(this.font, "X", x + width - 32, y + height - 21, color, false);
+        graphics.drawString(this.font, ".", x + width - 18, y + height - 21, color, false);
+    }
+
+    private float getPulse(float partialTick) {
+        if (this.minecraft == null || this.minecraft.level == null) {
+            return 0.5F;
+        }
+        return 0.5F + 0.5F * Mth.sin((this.minecraft.level.getGameTime() + partialTick) * 0.09F);
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return (Mth.clamp(alpha, 0, 255) << 24) | (color & 0x00FFFFFF);
     }
 
     /**

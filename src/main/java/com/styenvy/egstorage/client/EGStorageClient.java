@@ -2,12 +2,15 @@ package com.styenvy.egstorage.client;
 
 import com.mojang.logging.LogUtils;
 import com.styenvy.egstorage.EGStorageMod;
+import com.styenvy.egstorage.client.renderer.block.PandoraChestRenderer;
 import com.styenvy.egstorage.client.screen.PandoraChestScreen;
+import com.styenvy.egstorage.init.ModBlockEntities;
 import com.styenvy.egstorage.init.ModMenuTypes;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import org.slf4j.Logger;
 
@@ -26,5 +29,10 @@ public final class EGStorageClient {
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenuTypes.PANDORA_CHEST_MENU.get(), PandoraChestScreen::new);
+    }
+
+    @SubscribeEvent
+    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModBlockEntities.PANDORA_CHEST_BE.get(), PandoraChestRenderer::new);
     }
 }
